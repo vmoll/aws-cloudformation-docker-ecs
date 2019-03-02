@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: container on ecs cluster
+
+Resources:
+  
+  Task:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: apis
+      Cpu: 256
+      Memory: 512
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !ImportValue ECSTaskExecutionRole
+      ContainerDefinitions:
+        - Name: glovoapi
+          Image: 422259363882.dkr.ecr.us-east-1.amazonaws.com/spring-boot-demo/glovo-api:v1
+          Cpu: 256
+          Memory: 512
+          PortMappings:
+            - ContainerPort: 4567
+              Protocol: tcp
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: 'apis'
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: 'glovo-api'
+
+  Service:
+    Type: AWS::ECS::Service
+    DependsOn: ListenerRule
+    Properties:
+      ServiceName: glovo-service
+      TaskDefinition: !Ref Task
+      Cluster: !ImportValue 'ECSCluster'
+      LaunchType: FARGATE
+      DesiredCount: 2
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 70
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          Subnets:
+            - !ImportValue Subnet1
+            - !ImportValue Subnet2
+          SecurityGroups:
+            - !ImportValue ContainerSecurityGroup
+      LoadBalancers:
+        - ContainerName: glovoapi
+          ContainerPort: 4567
+          TargetGroupArn: !Ref TargetGroup
+
+  TargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: glovo-tg
+      VpcId: !ImportValue VPC
+      Port: 80
+      Protocol: HTTP
+      Matcher:
+        HttpCode: 200-299
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 10
+      TargetType: ip
+
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties:
+      ListenerArn: !ImportValue Listener
+      Priority: 2
+      Conditions:
+        - Field: path-pattern
+          Values:
+            - /*
+      Actions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+
+
+Outputs:
+
+  ApiEndpoint:
+    Description: Glovo API Endpoint
+    Value: !Join ['', ['http://', !ImportValue DomainName, '/']]
+    Export:
+      Name: 'GlovoApiEndpoint'
+

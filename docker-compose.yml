@@ -1,0 +1,3 @@
+secrets:
+  postgres_password:
+    file: ./docker_postgres_password
