@@ -26,7 +26,7 @@ def parse_downloadFiles_args():
     options = args
     return options.infile 
 
-def get_filename_from_cd(cd):
+def get_filename_from_content(cd):
     if not cd:
         return None
     fname = re.findall('filename=(.+)', cd)
@@ -41,7 +41,9 @@ def split_s3_path(s3_path):
     return bucket, key
 
 def download_file_tread(url):    
-    file_name = url.split('/')[-1]        
+    file_name = url.split('/')[-1] 
+    if not file_name:
+        file_name = get_filename_from_content(url)       
     if url.startswith("s3"):
         print("Downloading from S3 file: %s"%file_name)        
         Bucket, Key = split_s3_path(url)            
